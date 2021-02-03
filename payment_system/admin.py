@@ -82,7 +82,8 @@ class InvoiceAdmin(admin.ModelAdmin):
 
     list_display = (
         'get_owner',
-        'get_project',
+        # 'get_project',
+        'project_name',
         'get_subscription',
         # 'is_paid',
         'get_expiring_date',
@@ -102,7 +103,7 @@ class InvoiceAdmin(admin.ModelAdmin):
         'project_subscription__project__owner__last_name',
         'project_subscription__project__name',
     )
-    exclude = ('deleted_at',)
+    exclude = ('deleted_at', 'token')
 
     def get_readonly_fields(self, request, obj=None):
         readonly_fields = {
@@ -141,7 +142,7 @@ class InvoiceAdmin(admin.ModelAdmin):
 
 class ProjectForm(forms.ModelForm):
     subscription = forms.ModelChoiceField(
-        queryset=Subscription.objects.filter(is_default=False),
+        queryset=Subscription.objects.all(),
         label='Add subscription to project',
         required=True,
     )

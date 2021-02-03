@@ -1,0 +1,119 @@
+{% load i18n %}
+{% load currency %}
+
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Invoice</title>
+    <link rel="stylesheet" href="static/payment_system/invoice_stylesheet.css">
+  </head>
+  <body>
+    <table class="parties">
+      <tbody>
+        <tr>
+          <th>Постачальник</th>
+          <td>
+            <div><strong>ТОВ Океан Даних</strong></div>
+            <div>Ідентифікаційний код юридичної особи:  44011184</div>
+            <div>П/р UA363052990000026007026710693 в ПАТ КБ "ПРИВАТБАНК" в м. Києві МФО 305299</div>
+            <div>Платник єдиного податку на III групі. Не платник ПДВ.</div>
+            <div>03179, місто Київ, вул.Чорнобильська, буд. 12, кв. 34</div>
+          </td>
+        </tr>
+        <tr>
+          <th>Одержувач</th>
+          <td>
+            {% if user.organization %}
+              <div>{{ user.organization }},</div>
+            {% endif %}
+            <div>{{ user.get_full_name }},</div>
+            <div>{{ user.email }}</div>
+          </td>
+        </tr>
+        <tr>
+          <th>Платник</th>
+          <td>він же</td>
+        </tr>
+        <tr>
+          <th>Підстава</th>
+          <td>Публічний договір (оферта) щодо надання доступу до сервісу та послуг</td>
+        </tr>
+        <tr>
+          <th>Умова поставки</th>
+          <td>безготівковий розрахунок</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="title">
+      Рахунок-фактура №{{ invoice.id }} від
+      {{ invoice.created_at|date }}
+    </div>
+    <table class="items">
+      <colgroup>
+        <col style="width: 1%">
+        <col style="width: 40%">
+        <col style="width: 5%">
+        <col style="width: 7%">
+        <col style="width: 10%">
+        <col style="width: 10%">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>№</th>
+          <th>Товар</th>
+          <th>Од.</th>
+          <th>Кількість</th>
+          <th>Ціна без ПДВ</th>
+          <th>Сума без ПДВ</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="tc">1</td>
+          <td>Тарифний план {{ invoice.subscription_name }} ({{ invoice.project_name }})</td>
+          <td class="tc">посл.</td>
+          <td class="tc">1</td>
+          <td class="tr">{{ invoice.price|floatformat:2 }}</td>
+          <td class="tr">{{ invoice.price|floatformat:2 }}</td>
+        </tr>
+        <tr>
+          <td colspan="5" class="tr b-0">
+            <b>Разом без ПДВ:</b>
+          </td>
+          <td class="tr">{{ invoice.price|floatformat:2 }}</td>
+        </tr>
+        <tr>
+          <td colspan="5" class="tr b-0">
+            <b>ПДВ:</b>
+          </td>
+          <td class="tr">{{ invoice.tax|floatformat:2 }}</td>
+        </tr>
+        <tr>
+          <td colspan="5" class="tr b-0">
+            <b>Всього до оплати:</b>
+          </td>
+          <td class="tr">{{ invoice.price_with_tax|floatformat:2 }}</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="amount-words">
+      <div>Всього найменувань 1, на суму {{ invoice.price|floatformat:2 }} грн.</div>
+      <div><b>{{ invoice.price_with_tax|uah2words|capfirst }}</b></div>
+      <div><b>У т.ч ПДВ: Нуль гривень 00 копійок</b></div>
+      <div class="mt-15">Місце складання: м. Київ</div>
+    </div>
+    <div class="expire">
+{#      <div>#}
+{#        Виписав(ла):#}
+{#      </div>#}
+      <div>
+        Рахунок дійсний до сплати до {{ invoice.grace_period_end_date }}
+      </div>
+    </div>
+    {% if invoice.is_paid %}
+      <div class="paid">
+        {% trans 'PAID' %}
+      </div>
+    {% endif %}
+  </body>
+</html>

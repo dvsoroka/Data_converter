@@ -205,6 +205,8 @@ REST_AUTH_SERIALIZERS = {
     'PASSWORD_RESET_SERIALIZER': 'users.serializers.CustomPasswordResetSerializer',
 }
 
+CACHE_MIDDLEWARE_SECONDS = 60 * 60 * 24  # 24 hours
+
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
@@ -247,4 +249,8 @@ PROJECT_TOKEN_KEYWORD = 'DataOcean'
 
 # DATASET`S CONSTANTS ==================
 ALL_PEPS_DATASET_NAME = 'all PEPs list'
+PEP_DATASET_NAME = 'PEP'
 ALL_FOPS_DATASET_NAME = 'all FOPs list'
+FOP_DATASET_NAME = 'FOP'
+ALL_COMPANIES_DATASET_NAME = 'all companies list'
+COMPANY_DATASET_NAME = 'company'
