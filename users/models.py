@@ -5,6 +5,7 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 from rest_framework.authtoken.models import Token
 from data_ocean.models import DataOceanModel
+from users.validators import iban_validator, edrpou_validator, name_symbols_validator, two_in_row_validator
 
 
 class DataOceanUserManager(BaseUserManager):
@@ -42,9 +43,30 @@ class DataOceanUserManager(BaseUserManager):
 
 class DataOceanUser(AbstractUser):
     username = None
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['last_name', 'first_name']
+
+    INDIVIDUAL = 'individual'
+    INDIVIDUAL_ENTREPRENEUR = 'individual_entrepreneur'
+    LEGAL_ENTITY = 'legal_entity'
+    PERSON_STATUS = (
+        (INDIVIDUAL, _('Individual')),
+        (INDIVIDUAL_ENTREPRENEUR, _('Individual entrepreneur')),
+        (LEGAL_ENTITY, _('Legal entity')),
+    )
+
+    first_name = models.CharField(max_length=150, validators=[
+        name_symbols_validator,
+        two_in_row_validator,
+    ])
+    last_name = models.CharField(max_length=150, validators=[
+        name_symbols_validator,
+        two_in_row_validator,
+    ])
     email = models.EmailField(_('email address'), unique=True)
     organization = models.CharField(max_length=255, default='', blank=True)
     position = models.CharField(max_length=150, default='', blank=True)
+    phone = models.CharField(max_length=16, default='', blank=True)
     date_of_birth = models.DateField(default=None, null=True, blank=True)
     language = models.CharField(
         _('language'),
@@ -53,8 +75,16 @@ class DataOceanUser(AbstractUser):
         default=settings.LANGUAGE_CODE,
         blank=True,
     )
-    USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['last_name', 'first_name']
+
+    person_status = models.CharField(choices=PERSON_STATUS, default=INDIVIDUAL, max_length=23, blank=True)
+    iban = models.CharField(max_length=29, default='', blank=True, validators=[iban_validator])
+    company_name = models.CharField(max_length=150, default='', blank=True)
+    registration_address = models.CharField(max_length=150, default='', blank=True)
+    edrpou = models.CharField(max_length=8, default='', blank=True, validators=[edrpou_validator])
+    # Permissions
+    datasets_admin = models.BooleanField(blank=True, default=False)
+    users_viewer = models.BooleanField(blank=True, default=False)
+    payment_system_admin = models.BooleanField(blank=True, default=False)
 
     objects = DataOceanUserManager()
 
@@ -81,6 +111,13 @@ class DataOceanUser(AbstractUser):
         }
         """
         alerts = []
+        active_p2s = self.user_projects.get(is_default=True).project.active_p2s
+        if not active_p2s.subscription.is_default and active_p2s.latest_invoice \
+                and not active_p2s.latest_invoice.is_paid:
+            alerts.append({
+                'message': _('You have not paid the invoice'),
+                'link': f'{settings.FRONTEND_SITE_URL}/system/profile/my-payments/',
+            })
         # alerts.append({
         #     'message': 'Lorem ipsum dolor sit amet, consectetur adipiscing eliуushte '
         #                'tortor imperdiet vuleputate pellentesque amet convallscscsis massa. '
@@ -96,8 +133,9 @@ class DataOceanUser(AbstractUser):
 class CandidateUserModel(models.Model):
     email = models.EmailField(_('email address'), unique=True)
     password = models.CharField(_('password'), max_length=128)
-    first_name = models.CharField(_('first name'), max_length=30)
+    first_name = models.CharField(_('first name'), max_length=150)
     last_name = models.CharField(_('last name'), max_length=150)
+    phone = models.CharField(max_length=16, default='', blank=True)
     language = models.CharField(
         _('language'),
         max_length=2,
@@ -112,13 +150,17 @@ class CandidateUserModel(models.Model):
 
 
 class Question(DataOceanModel):
-    text = models.TextField('текст запитання', max_length=500)
+    text = models.TextField('text', max_length=500)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
                              related_name='questions')
-    answered = models.BooleanField('чи була надана відповідь', default=False)
+    answered = models.BooleanField('was answered', default=False)
 
     def __str__(self):
         return self.text
+
+    class Meta:
+        verbose_name = _('question')
+        verbose_name_plural = _('questions')
 
 
 class Notification(DataOceanModel):
@@ -135,5 +177,5 @@ class Notification(DataOceanModel):
         self.save(update_fields=['is_read'])
 
     class Meta:
-        verbose_name = _('Notification')
-        verbose_name_plural = _('Notifications')
+        verbose_name = _('notification')
+        verbose_name_plural = _('notifications')

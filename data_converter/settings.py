@@ -9,8 +9,11 @@ https://docs.djangoproject.com/en/2.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/2.0/ref/settings/
 """
+
 from data_converter.settings_local import *
 from django.utils.translation import ugettext_lazy as _
+
+DEBUG_TOOLBAR = locals().get('DEBUG_TOOLBAR', False)
 
 # Application definition
 
@@ -22,11 +25,11 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.postgres',
     'django.contrib.sites',
     'django_celery_beat',
     'django_extensions',
     'django_filters',
-    # 'debug_toolbar',
     'drf_yasg',
     'rangefilter',  # plugin for django admin
     'corsheaders',
@@ -46,7 +49,8 @@ INSTALLED_APPS = [
     'business_register',
     'location_register',
     'stats',
-    'payment_system'
+    'payment_system',
+    'corrupt_person_register'
 ]
 
 MIDDLEWARE = [
@@ -55,14 +59,17 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.locale.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
-    # 'debug_toolbar.middleware.DebugToolbarMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'stats.middleware.ApiUsageMiddleware',
-    'payment_system.middleware.RequestsLimitMiddleware',
+    'payment_system.middleware.ProjectAuthenticationMiddleware',
 ]
+
+if DEBUG_TOOLBAR:
+    INSTALLED_APPS += ['debug_toolbar']
+    MIDDLEWARE += ['debug_toolbar.middleware.DebugToolbarMiddleware']
 
 INTERNAL_IPS = [
     '127.0.0.1',
@@ -162,8 +169,32 @@ REST_FRAMEWORK = {
     'EXCEPTION_HANDLER': 'data_converter.drf_exc_handler.exception_handler',
 }
 
-SITE_ID = 1
+SWAGGER_SETTINGS = {
+    'SECURITY_DEFINITIONS': {
+        "API key": {
+            "type": "apiKey",
+            "name": "Authorization: DataOcean <project_key>",
+            "in": "header",
+            "description": (
+                "You will find an access token in your profile. In order to access the API, you need to add a regular title"
+                f" called<br/>'Authorization' meaning 'DataOcean {{token}}' to your HTTPS to {BACKEND_SITE_URL}/api/"
+                " {name of register}<br/> request by substituting your token.<br/>Final title:<br/><b>Authorization: DataOcean "
+                "94c6d542af1c4c4942e51df6с4d47fbd12fb3dea</b><br/> Example with curl:<br/><b>curl -X GET -H 'Authorization: "
+                f"DataOcean {{token}}' {BACKEND_SITE_URL}/api/ {{name of register}}</b>"
+            ),
+        },
+    },
+    'DEFAULT_PAGINATOR_INSPECTORS': [
+        'data_converter.drf_yasg_inspectors.DODjangoRestResponsePagination',
+        'drf_yasg.inspectors.CoreAPICompatInspector',
+    ],
+    'DEFAULT_FILTER_INSPECTORS': [
+        'data_converter.drf_yasg_inspectors.DjangoFilterDescriptionInspector',
+    ],
+    'DEFAULT_AUTO_SCHEMA_CLASS': 'data_ocean.views.DOAutoSchemaClass',
+}
 
+SITE_ID = 1
 
 # Settings for social authentication
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
@@ -245,12 +276,15 @@ DEFAULT_PROJECT_DESCRIPTION = 'This is auto created default project'
 
 # PROJECT_TOKEN_KEYWORD - its a token prefix, example:
 # Authorization: DataOcean <project_token>
+PROJECT_PLATFORM_TOKEN_KEYWORD = 'Platform'
 PROJECT_TOKEN_KEYWORD = 'DataOcean'
 
+OVERDUE_INVOICE_DATE_INCREASE = 10  # days
+
 # DATASET`S CONSTANTS ==================
-ALL_PEPS_DATASET_NAME = 'all PEPs list'
-PEP_DATASET_NAME = 'PEP'
-ALL_FOPS_DATASET_NAME = 'all FOPs list'
-FOP_DATASET_NAME = 'FOP'
-ALL_COMPANIES_DATASET_NAME = 'all companies list'
-COMPANY_DATASET_NAME = 'company'
+PEP_REGISTER_LIST = '/api/pep/'
+FOP_REGISTER_LIST = '/api/fop/'
+KVED_REGISTER_LIST = '/api/kved/'
+UKR_COMPANY_REGISTER_LIST = '/api/company/ukr/'
+UK_COMPANY_REGISTER_LIST = '/api/company/uk/'
+DRVBUILDING_REGISTER_LIST = '/api/drvbuilding/'

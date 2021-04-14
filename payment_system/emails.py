@@ -1,15 +1,38 @@
 from typing import TYPE_CHECKING
 
-from django.utils import translation
+from django.utils import translation, timezone
 
 if TYPE_CHECKING:
-    from payment_system.models import ProjectSubscription, Project, Subscription, UserProject, Invoice
+    from payment_system.models import (
+        ProjectSubscription,
+        Project,
+        Subscription,
+        UserProject,
+        Invoice,
+        CustomSubscriptionRequest,
+        Invitation,
+        InvoiceReport,
+    )
 
 from django.conf import settings
 
 from data_converter.email_utils import send_template_mail
 from users.models import DataOceanUser
 from django.utils.translation import gettext_lazy as _, gettext
+
+
+def member_deleted(user: 'DataOceanUser', project: 'Project'):  # 6
+    with translation.override(user.language):
+        user.notify(message=gettext('You have been deleted from the project') + f' "{project.name}"')
+        send_template_mail(
+            to=[user.email],
+            subject=_('You were deleted from the project'),
+            template='payment_system/emails/member_deleted.html',
+            context={
+                'user': user,
+                'project': project,
+            },
+        )
 
 
 def member_activated(user: 'DataOceanUser', project: 'Project'):  # 5
@@ -57,11 +80,13 @@ def membership_confirmed(user: 'DataOceanUser', member: DataOceanUser):  # 3
         )
 
 
-def new_invitation(invited_email: str, project: 'Project'):  # 2
+def new_invitation(invitation: 'Invitation'):  # 2
+    invited_email = invitation.email
+    project = invitation.project
     user = DataOceanUser.objects.filter(email=invited_email).first()
     if user:
         user.notify(
-            message=_('{owner} has invited you to project "{project}"').format(
+            message=_('The user {owner} has invited you to the project "{project}"').format(
                 owner=project.owner.get_full_name(),
                 project=project.name,
             ),
@@ -211,7 +236,7 @@ def tomorrow_payment_day(project_subscription: 'ProjectSubscription'):  # 8
     with translation.override(owner.language):
         send_template_mail(
             to=[owner.email],
-            subject=_('You have not paid the invoice'),
+            subject=_('You have not paid the bill'),
             template='payment_system/emails/tomorrow_payment_day.html',
             context={
                 'user': owner,
@@ -225,3 +250,28 @@ def tomorrow_payment_day(project_subscription: 'ProjectSubscription'):  # 8
                 ),
             ],
         )
+
+
+def new_custom_sub_request(custom_subscription_request: 'CustomSubscriptionRequest'):
+    send_template_mail(
+        to=[settings.SUPPORT_EMAIL],
+        subject=f'Запит на тарифний план Custom від {custom_subscription_request.full_name}',
+        template='payment_system/emails/new_custom_sub_request.html',
+        context={
+            'csr': custom_subscription_request,
+        },
+    )
+
+
+def create_report(invoices: dict):
+    send_template_mail(
+        to=[settings.SUPPORT_EMAIL],
+        subject=f'Підсумок оплати інвойсів за {timezone.localdate()}',
+        template='payment_system/emails/daily_report.html',
+        context={
+            'should_complete_invoices': invoices['should_complete'],
+            'was_overdue_invoices': invoices['was_overdue'],
+            'was_overdue_grace_period_invoices': invoices['was_overdue_grace_period'],
+            'was_complete_invoices': invoices['was_complete'],
+        },
+    )

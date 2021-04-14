@@ -17,6 +17,7 @@ from payment_system.models import (
     Invoice,
     Invitation,
     ProjectSubscription,
+    CustomSubscriptionRequest,
 )
 from payment_system.serializers import (
     ProjectListSerializer,
@@ -27,6 +28,7 @@ from payment_system.serializers import (
     InvitationListSerializer,
     ProjectTokenSerializer,
     ProjectSubscriptionSerializer,
+    CustomSubscriptionRequestSerializer,
 )
 
 
@@ -50,8 +52,10 @@ class ProjectListForUserView(ProjectViewMixin, generics.ListAPIView):
         projects = list(self.get_queryset())
 
         def sort_projects(project):
-            rate = 2
+            rate = 3
             user_project = project.user_projects.get(user=self.request.user)
+            if user_project.is_default:
+                rate -= 1
             if user_project.role == UserProject.OWNER:
                 rate -= 1
             if project.is_active:
@@ -138,6 +142,16 @@ class ProjectActivateUserView(ProjectViewMixin, generics.GenericAPIView):
         return Response(serializer.data)
 
 
+class ProjectDeleteUserView(ProjectViewMixin, generics.GenericAPIView):
+    serializer_class = ProjectSerializer
+
+    def delete(self, request, pk, user_id):
+        project = self.get_object()
+        project.delete_user(user_id=user_id)
+        serializer = self.get_serializer(project)
+        return Response(serializer.data)
+
+
 class ProjectInviteUserView(ProjectViewMixin, generics.GenericAPIView):
     serializer_class = ProjectInviteUserSerializer
 
@@ -203,12 +217,6 @@ class SubscriptionsListView(generics.ListAPIView):
     serializer_class = SubscriptionSerializer
     queryset = Subscription.objects.filter(is_custom=False)
     pagination_class = None
-
-
-# TODO: PDF View
-# class InvoiceRetrieveView(generics.RetrieveAPIView):
-#     queryset = Invoice.objects.all()
-#     serializer_class = InvoiceSerializer
 
 
 class InvoicesViewMixin:
@@ -300,16 +308,12 @@ class CurrentUserProjectTokenView(ProjectViewMixin, generics.GenericAPIView):
         return Response(serializer.data)
 
 
-# TODO: remove this
-# class TestEmailView(View):
-#     def get(self, request):
-#         with translation.override('uk'):
-#             project = Project.objects.all().first()
-#             return render(
-#                 request=request,
-#                 template_name='payment_system/emails/new_invitation.html',
-#                 context={
-#                     'owner': project.owner,
-#                     'project': project,
-#                 }
-#             )
+class CustomSubscriptionRequestCreateView(generics.CreateAPIView):
+    permission_classes = [AllowAny]
+    queryset = CustomSubscriptionRequest.objects.all()
+    serializer_class = CustomSubscriptionRequestSerializer
+
+    def perform_create(self, serializer: CustomSubscriptionRequestSerializer):
+        if self.request.user.is_authenticated:
+            serializer.validated_data['user'] = self.request.user
+        super().perform_create(serializer)

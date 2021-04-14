@@ -48,6 +48,7 @@ class CustomRegistrationView(views.APIView):
             first_name=serializer.validated_data.get('first_name'),
             last_name=serializer.validated_data.get('last_name'),
             language=user_language,
+            phone=serializer.validated_data.get('phone', ''),
         )
 
         # check if this email is among existing users
@@ -109,6 +110,11 @@ class CustomRegistrationConfirmView(views.APIView):
         if confirm_code != confirm_code_check:
             return Response({'detail': _('Confirmation link is broken')}, status=400)
 
+        if DataOceanUser.objects.filter(email=user.email).exists():
+            return Response({
+                'detail': _('The link is invalid, the email address was confirmed earlier'),
+            }, status=400)
+
         # create a real user
         real_user = DataOceanUser.objects.create(
             email=user.email,
@@ -116,6 +122,7 @@ class CustomRegistrationConfirmView(views.APIView):
             first_name=user.first_name,
             last_name=user.last_name,
             language=user.language,
+            phone=user.phone,
         )
 
         # send mail

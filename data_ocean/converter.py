@@ -5,13 +5,13 @@ import os
 import traceback
 import zipfile
 from collections import defaultdict
-from datetime import datetime
-from time import sleep
-from xml.etree.ElementTree import iterparse
+
 import requests
 import xmltodict
 from django.apps import apps
 from lxml import etree
+
+from data_ocean.utils import Timer
 from location_register.models.address_models import Country
 
 logger = logging.getLogger(__name__)
@@ -24,9 +24,21 @@ class Converter:
     LOCAL_FOLDER = "source_data/"  # local folder for unzipped source files
     DOWNLOAD_FOLDER = "download/"  # folder to downloaded files
     URLS_DICT = {}  # control remote dataset files update
+    timing = False
+    timer = None
 
     def __init__(self):
-        self.all_countries_dict = self.put_all_objects_to_dict("name", "location_register", "Country")
+        self.all_countries_dict = self.put_objects_to_dict("name", "location_register", "Country")
+        if self.timing:
+            self.timer = Timer()
+
+    def time_it(self, code_block_name):
+        if self.timing:
+            self.timer.time_it(code_block_name)
+
+    def print_running_times(self):
+        if self.timing:
+            self.timer.print_result()
 
     def save_or_get_country(self, name):
         name = name.lower()
@@ -35,7 +47,6 @@ class Converter:
             self.all_countries_dict[name] = new_country
             return new_country
         return self.all_countries_dict[name]
-
 
     def load_json(self, json_file):
         with open(json_file) as file:
@@ -176,9 +187,23 @@ class Converter:
             table.objects.all().delete()
             print('Old data have deleted.')
 
-    def put_all_objects_to_dict(self, key_field, app_name, model_name):
-        return {getattr(obj, key_field): obj for obj in apps.get_model(app_name,
-                                                                       model_name).objects.all()}
+    def put_objects_to_dict(self, key_field, app_name, model_name):
+        return {getattr(obj, key_field): obj for obj in apps.get_model(
+            app_name,
+            model_name
+        ).objects.all()
+                }
+
+    def put_objects_to_dict_with_two_fields_key(self, first_field, second_field, app_name, model_name):
+        return {f'{getattr(obj, first_field)}_{getattr(obj, second_field)}':
+                    obj for obj in apps.get_model(
+            app_name,
+            model_name
+        ).objects.all()
+                }
+
+    def delete_outdated(self):
+        """ delete some outdated records """
 
     def process(self, start_index=0):
         records = []
@@ -188,25 +213,31 @@ class Converter:
             recover=False,
         )
 
-        for _ in range(start_index):
-            next(elements)
+        # for _ in range(start_index):
+        #     next(elements)
 
-        i = start_index
+        # i = start_index
+        i = 0
         chunk_start_index = i
-        records_len = 0
         for _, elem in elements:
+            records_len = len(records)
+
             if records_len == 0:
                 chunk_start_index = i
+
             # for text in elem.iter():
             #     print('\t%28s\t%s' % (text.tag, text.text))
+
             records.append(elem)
-            records_len = len(records)
-            if records_len < self.CHUNK_SIZE:
-                i += 1
-            else:
+            records_len += 1
+            if records_len >= self.CHUNK_SIZE:
                 # print(f'>>> Start save to db records {chunk_start_index}-{i}')
                 try:
-                    self.save_to_db(records)
+                    if i >= start_index:
+                        self.time_it('preparing chunk of records')
+                        self.save_to_db(records)
+                    self.print_running_times()
+                    print(i)
                 except Exception as e:
                     msg = f'!!! Save to db failed at index = {chunk_start_index}. Error: {str(e)}'
                     logger.error(msg)
@@ -228,9 +259,11 @@ class Converter:
                         del ancestor.getparent()[0]
 
                 print('>>> Saved successfully')
+            i += 1
         if records_len:
             self.save_to_db(records)
-
+        if start_index == 0:
+            self.delete_outdated()
         del elements
         print('All the records have been rewritten.')
 

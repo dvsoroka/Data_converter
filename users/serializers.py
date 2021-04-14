@@ -1,5 +1,7 @@
+import re
 from difflib import SequenceMatcher
 
+from django.core.validators import RegexValidator
 from django.utils.text import format_lazy
 from django.utils.translation import ugettext_lazy as _
 from rest_auth.registration.serializers import RegisterSerializer
@@ -9,21 +11,54 @@ from rest_framework.authtoken.models import Token
 
 from .forms import CustomPasswordResetForm
 from .models import DataOceanUser, Question, Notification
+from .validators import name_symbols_validator, two_in_row_validator
 
 
 class DataOceanUserSerializer(serializers.ModelSerializer):
+
+    def validate(self, data):
+
+        """validate fop and legal_entity fields"""
+
+        if data.get('person_status') in ('individual_entrepreneur', 'legal_entity'):
+            if not data.get('iban'):
+              raise serializers.ValidationError({'iban':_(f"IBAN is required for %(person_status)s" % {
+                  'person_status': data.get('person_status').replace('_', ' '),
+              })})
+        if data.get('person_status') == DataOceanUser.LEGAL_ENTITY:
+            if not data.get('edrpou'):
+                raise serializers.ValidationError({'edrpou':_("EDRPOU is required for Legal entity")})
+            if not data.get('company_name'):
+                raise serializers.ValidationError({'name_company':_("Company name is required for Legal entity")})
+            if not data.get('registration_address'):
+                raise serializers.ValidationError({'registration_address':_("Registration address is required for Legal entity")})
+
+        return data
+
     class Meta:
         model = DataOceanUser
         fields = (
             'id', 'last_name', 'first_name', 'email',
-            'organization', 'position', 'date_of_birth', 'language'
+            'organization', 'position', 'date_of_birth', 'language',
+            'person_status', 'iban', 'company_name', 'registration_address',
+            'edrpou', 'phone',
         )
 
 
 class CustomRegisterSerializer(RegisterSerializer):
     username = None
-    first_name = serializers.CharField(required=True, write_only=True)
-    last_name = serializers.CharField(required=True, write_only=True)
+    first_name = serializers.CharField(
+        required=True,
+        write_only=True,
+        max_length=150,
+        validators=[name_symbols_validator, two_in_row_validator]
+    )
+    last_name = serializers.CharField(
+        required=True,
+        write_only=True,
+        max_length=150,
+        validators=[name_symbols_validator, two_in_row_validator]
+    )
 
     def get_cleaned_data(self):
         return {
@@ -32,6 +67,7 @@ class CustomRegisterSerializer(RegisterSerializer):
             'email': self.validated_data.get('email', ''),
             'password1': self.validated_data.get('password1', ''),
             'password2': self.validated_data.get('password2', ''),
+            'phone': self.validated_data.get('phone', ''),
         }
 
     def validate(self, data):
@@ -51,12 +87,12 @@ class CustomRegisterSerializer(RegisterSerializer):
                 err_msg = _('Your password can’t be too similar to')
                 err_msg_result = format_lazy('{err_msg} {v}.', err_msg=err_msg, v=v)
                 raise serializers.ValidationError(err_msg_result)
-
         return data
 
 
 class CustomLoginSerializer(LoginSerializer):
     username = None
+    email = serializers.EmailField(required=True)
 
 
 class TokenSerializer(serializers.ModelSerializer):

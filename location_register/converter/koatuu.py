@@ -1,14 +1,16 @@
 # Python logging package
 import logging
+
+import requests
 from django.conf import settings
 from django.utils import timezone
-import requests
+
 from data_ocean.converter import Converter
 from data_ocean.downloader import Downloader
-from location_register.models.ratu_models import RatuRegion, RatuDistrict, RatuCity, RatuCityDistrict
+from data_ocean.utils import clean_name, change_to_full_name, get_lowercase_substring_before_slash
 from location_register.models.koatuu_models import (KoatuuFirstLevel, KoatuuSecondLevel, KoatuuThirdLevel,
                                                     KoatuuFourthLevel, KoatuuCategory)
-from data_ocean.utils import clean_name, change_to_full_name, get_lowercase_substring_before_slash
+from location_register.models.ratu_models import RatuRegion, RatuDistrict, RatuCity, RatuCityDistrict
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -265,15 +267,15 @@ class NewKoatuuConverter(Converter):
 
     def __init__(self):
         self.LOCAL_FILE_NAME = settings.LOCATION_KOATUU_LOCAL_FILE_NAME
-        self.all_first_level_places = self.put_all_objects_to_dict('code', 'location_register',
+        self.all_first_level_places = self.put_objects_to_dict('code', 'location_register',
                                                                    'KoatuuFirstLevel')
-        self.all_second_level_places = self.put_all_objects_to_dict('code', 'location_register',
+        self.all_second_level_places = self.put_objects_to_dict('code', 'location_register',
                                                                     'KoatuuSecondLevel')
-        self.all_third_level_places = self.put_all_objects_to_dict('code', 'location_register',
+        self.all_third_level_places = self.put_objects_to_dict('code', 'location_register',
                                                                    'KoatuuThirdLevel')
-        self.all_fourth_level_places = self.put_all_objects_to_dict('code', 'location_register',
+        self.all_fourth_level_places = self.put_objects_to_dict('code', 'location_register',
                                                                     'KoatuuFourthLevel')
-        self.all_categories = self.put_all_objects_to_dict('code', 'location_register',
+        self.all_categories = self.put_objects_to_dict('code', 'location_register',
                                                            'KoatuuCategory')
         # a dictionary for storing all abbreviations and full forms of KOATUU categories
         self.KOATUU_CATEGORY_DICT = {
@@ -481,19 +483,19 @@ class KoatuuDownloader(Downloader):
 
         logger.info(f'{self.reg_name}: Update started...')
 
-        self.log_init()
+        self.report_init()
         self.download()
 
-        self.log_obj.update_start = timezone.now()
-        self.log_obj.save()
+        self.report.update_start = timezone.now()
+        self.report.save()
 
         logger.info(f'{self.reg_name}: save_to_db({self.file_path}) started ...')
         NewKoatuuConverter().save_to_db(self.file_path)
         logger.info(f'{self.reg_name}: save_to_db({self.file_path}) finished successfully.')
 
-        self.log_obj.update_finish = timezone.now()
-        self.log_obj.update_status = True
-        self.log_obj.save()
+        self.report.update_finish = timezone.now()
+        self.report.update_status = True
+        self.report.save()
 
         self.remove_file()
 

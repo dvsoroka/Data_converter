@@ -6,6 +6,7 @@ from payment_system.models import (
     Subscription,
     Invoice,
     Invitation,
+    CustomSubscriptionRequest,
 )
 
 
@@ -35,7 +36,7 @@ class SubscriptionToProjectSerializer(serializers.ModelSerializer):
         model = ProjectSubscription
         fields = [
             'id', 'subscription_id', 'name', 'status', 'expiring_date',
-            'price', 'requests_limit', 'duration', 'grace_period',
+            'price', 'requests_limit', 'periodicity', 'grace_period',
             'requests_left', 'requests_used', 'is_paid',
             'payment_date', 'payment_overdue_days', 'is_default',
         ]
@@ -74,7 +75,8 @@ class ProjectListSerializer(serializers.ModelSerializer):
         return obj.user_projects.get(user=self.context['request'].user).status
 
     def get_users_count(self, obj):
-        return obj.users.count()
+        return obj.users.filter(user_projects__status=UserProject.ACTIVE).count()
+
 
     class Meta:
         model = Project
@@ -131,12 +133,19 @@ class ProjectSerializer(serializers.ModelSerializer):
 
 
 class SubscriptionSerializer(serializers.ModelSerializer):
+    pep_db_downloading_if_yearly = serializers.BooleanField(
+        source='yearly_subscription.pep_db_downloading',
+        default=False,
+    )
+
     class Meta:
         model = Subscription
         read_only_fields = (
             'id', 'name', 'description', 'price',
-            'requests_limit', 'duration', 'grace_period',
-            'is_custom', 'is_default',
+            'requests_limit', 'platform_requests_limit', 'periodicity', 'grace_period',
+            'is_custom', 'is_default', 'pep_checks', 'pep_checks_per_minute',
+            'pep_db_downloading', 'position', 'yearly_subscription',
+            'pep_db_downloading_if_yearly',
         )
         fields = read_only_fields
 
@@ -195,6 +204,16 @@ class ProjectSubscriptionSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'project', 'subscription', 'status',
             'start_date', 'expiring_date', 'requests_left',
-            'is_grace_period', 'duration', 'grace_period',
+            'is_grace_period', 'periodicity', 'grace_period',
         ]
         read_only_fields = fields
+
+
+class CustomSubscriptionRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomSubscriptionRequest
+        read_only_fields = ['is_processed', 'created_at']
+        fields = [
+            'id', 'first_name', 'last_name',
+            'email', 'phone', 'note',
+        ] + read_only_fields
